@@ -11,17 +11,33 @@
 - include: Debian.yml
   when: ansible_os_family == "Debian"
 
-- name: Setup graphite with pip
+- name: Setup graphite dependencies with pip
   pip: name={{ item }} state=present
   with_items:
     - "https://github.com/graphite-project/ceres/tarball/master"
     - whisper
-    - carbon
-    - graphite-web
     - "django==1.6"
-    - "django-tagging==0.3.6" # Never versions require Django 1.7+
+    - "django-tagging==0.3.6"
   environment:
     PYTHONPATH: "{{ graphite_install_path }}/lib:{{ graphite_install_path }}/webapp"
+  notify: restart carbon-cache
+
+- name: Setup carbon with pip
+  pip:
+    name: "{{ item }}"
+    state: present
+    extra_args: "--install-option=\"--prefix={{ graphite_install_path }}\" --install-option=\"--install-lib={{ graphite_install_path }}/lib\""
+  with_items:
+    - carbon
+  notify: restart carbon-cache
+
+- name: Setup graphite-web with pip
+  pip:
+    name: "{{ item }}"
+    state: present
+    extra_args: "--install-option=\"--prefix={{ graphite_install_path }}\" --install-option=\"--install-lib={{ graphite_install_path }}/webapp\""
+  with_items:
+    - graphite-web
   notify: restart carbon-cache
 
 - name: Set perms for graphite storage
