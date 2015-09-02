@@ -100,7 +100,7 @@
   file: path=/tmp/createsuperuser.py state=absent
 
 - name: Make sure services are running
-  service: name={{ item }} state=started
+  service: name={{ item }} state=started enabled=yes
   with_items:
     - carbon-cache
     - uwsgi

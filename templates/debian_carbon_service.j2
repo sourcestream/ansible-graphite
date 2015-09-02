@@ -1,65 +1,72 @@
-#!/bin/sh
+# {{ ansible_managed }}
+#
+# carbon-cache-a upstart job
+#
+# Daniel Beckha
+# @dbeckham
+# https://github.com/dbeckham
+#
+# Tested with Graphite carbon tag v0.9.12 from:
+# https://github.com/graphite-project/carbon
+#
+# Upstart config: /etc/init/carbon-cache-a.conf
+# init.d symlink: /etc/init.d/carbon-cache-a -> /lib/init/upstart-job
+#
+# This upstart job attempts to duplicate the twistd configuration and
+# command line options that carbon-cache.py uses, but will not daemonize
+# so that an Ubuntu system can properly control carbon-cache.
+#
+# Fun fact, without --nodaemon, twistd carbon-cache forks five times (5!).
+# Upstart wasn't designed to handle that level of wtf.
+#
+# If you would like to use this with a different instance name other than
+# the default (a), replace carbon-cache-a with carbon-cache-<instancename>
+# in this file and add '--instance <instancename>' to the script block
+# after 'carbon-cache'.
+#
+# This file is generated for me using a Puppet template I created and I
+# suggest you do the same using Puppet, Chef, or whatever your favorite
+# configuration management solution is.
+#
+# Comments added to explain each option.
+#
 
-### BEGIN INIT INFO
-# Provides:        carbon-cache
-# Required-Start:    $remote_fs $syslog
-# Required-Stop:    $remote_fs $syslog
-# Default-Start:    2 3 4 5
-# Default-Stop:        
-# Short-Description:    carbon-cache server
-### END INIT INFO
+description "Graphite carbon-cache-a instance."
+author      "Ansible"
 
-set -e
+# If you are binding to something other than 0.0.0.0, consider
+# using start on (local-filesystems and net-device-up IFACE!=lo)
+# See: http://upstart.ubuntu.com/cookbook/#start-on
+start on runlevel [2345]
+stop on runlevel [016]
 
-test -x {{ graphite_install_path }}/bin/carbon-cache.py || exit 0
+# GRAPHITE_ROOT is required by the Twisted plugin
+env GRAPHITE_ROOT=/opt/graphite
+# Twisted requires that the immediate parent directory of the
+# plugin be in the Python sys path.
+env PYTHONPATH=/opt/graphite/lib
 
-umask 022
+# Since we aren't using carbon-cache.py, ensure that the log directories
+# are created before running carbon-cache.
+pre-start script
+    mkdir -p $GRAPHITE_ROOT/storage/log/carbon-cache/carbon-cache-a
+end script
 
-. /lib/lsb/init-functions
-
-if [ "x$2" != "x2nd" ]; then
-	sudo -u {{ graphite_user }} $0 $1 2nd
-	exit 0
-fi
-
-export PATH="${PATH:+$PATH:}/usr/sbin:/sbin"
-export PYTHONPATH="{{ graphite_install_path }}/lib:{{ graphite_install_path }}/webapp"
-
-case "$1" in
-  start)
-    log_daemon_msg "Starting carbon-cache daemon" "carbon-cache" || true
-    if {{ graphite_install_path }}/bin/carbon-cache.py start; then
-        log_end_msg 0 || true
-    else
-        log_end_msg 1 || true
-    fi
-    ;;
-  stop)
-    log_daemon_msg "Stopping carbon-cache daemon" "carbon-cache" || true
-    if {{ graphite_install_path }}/bin/carbon-cache.py stop; then
-        log_end_msg 0 || true
-    else
-        log_end_msg 1 || true
-    fi
-    ;;
-
-  restart)
-    log_daemon_msg "Restarting carbon-cache daemon" "carbon-cache" || true
-    {{ graphite_install_path }}/bin/carbon-cache.py stop
-    if {{ graphite_install_path }}/bin/carbon-cache.py start; then
-        log_end_msg 0 || true
-    else
-        log_end_msg 1 || true
-    fi
-    ;;
-
-  status)
-    {{ graphite_install_path }}/bin/carbon-cache.py status && exit 0 || exit $?
-    ;;
-
-  *)
-    log_action_msg "Usage: /etc/init.d/ssh {start|stop|restart|status}" || true
-    exit 1
-esac
-
-exit 0
+# Details taken from carbon/conf.py and carbon/util.py
+#
+# Added --nodaemon for obvious reasons
+# Use --instance <instancename> after carbon-cache for a different intance
+#
+# WARNING: the current version (as of 0.9.12) of the carbon code intentionally
+# forces logging to STDOUT if the twistd option --nodaemon is used without
+# --stdout.  If separate logs are still required for each log type,
+# pass --stdout to twistd and filter your syslog appropriately.
+script
+    exec twistd \
+    --nodaemon \
+    --reactor=epoll \
+    --no_save \
+    carbon-cache \
+    --config $GRAPHITE_ROOT/conf/carbon.conf \
+    2>&1 >> $GRAPHITE_ROOT/storage/log/carbon-cache/carbon-cache-a/console.log
+end script
