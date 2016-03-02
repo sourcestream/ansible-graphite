@@ -11,22 +11,23 @@
 - include: Debian.yml
   when: ansible_os_family == "Debian"
 
-- name: Setup django with pip
-  pip:
-    name: "{{ item }}"
-    state: present
+- name: Setup graphite dependencies with pip
+  pip: name={{ item }} state=present
   with_items:
+    - "https://github.com/graphite-project/ceres/tarball/master"
+    - whisper
     - "django==1.6"
     - "django-tagging==0.3.6"
+  notify: restart carbon-cache
 
-- name: Setup graphite dependencies with pip
+- name: Setup carbon with pip
   pip:
     name: "{{ item }}"
     state: present
     extra_args: "--install-option=\"--prefix={{ graphite_install_path }}\" --install-option=\"--install-lib={{ graphite_install_path }}/lib\""
+  environment:
+    PYTHONPATH: "{{ graphite_install_path }}/lib:{{ graphite_install_path }}/webapp"
   with_items:
-    - "https://github.com/graphite-project/ceres/tarball/master"
-    - whisper
     - carbon
   notify: restart carbon-cache
 
@@ -35,6 +36,8 @@
     name: "{{ item }}"
     state: present
     extra_args: "--install-option=\"--prefix={{ graphite_install_path }}\" --install-option=\"--install-lib={{ graphite_install_path }}/webapp\""
+  environment:
+    PYTHONPATH: "{{ graphite_install_path }}/lib:{{ graphite_install_path }}/webapp"
   with_items:
     - graphite-web
   notify: restart carbon-cache
