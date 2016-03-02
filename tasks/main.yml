@@ -15,6 +15,7 @@
   pip: name={{ item }} state=present
   with_items:
     - "https://github.com/graphite-project/ceres/tarball/master"
+    - pytz
     - whisper
     - "django==1.6"
     - "django-tagging==0.3.6"
